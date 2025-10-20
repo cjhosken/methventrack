@@ -31,9 +31,9 @@ jobs:
     - name: Build executable
       run: |
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-          pyinstaller --onefile main.py
+          pyinstaller --onefile src/main.py
         else
-          pyinstaller --onefile main.py
+          pyinstaller --onefile src/main.py
         fi
       shell: bash
 
