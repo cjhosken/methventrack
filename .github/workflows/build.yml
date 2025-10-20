@@ -1,4 +1,4 @@
-name: Build EXE and Linux Binary
+name: Application Passses Build
 
 on:
   push:
