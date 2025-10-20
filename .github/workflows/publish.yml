@@ -29,11 +29,7 @@ jobs:
 
     - name: Build executable
       run: |
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
-          python -m PyInstaller main.spec
-        else
-          pyinstaller main.spec
-        fi
+        python -m PyInstaller main.spec
       shell: bash
 
     - name: Upload to GitHub Release
