@@ -3,7 +3,7 @@
 <div align="center">
 <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=fff"/>
 
-<img src="https://img.shields.io/badge/USD-16B7FB?style=for-the-badge"/>
+<img src="https://img.shields.io/badge/USD-16B7FB"/>
     
 <br/>
 
