@@ -1,0 +1,47 @@
+name: Build EXE and Linux Binary
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [windows-latest, ubuntu-latest]
+        python-version: ["3.11"]
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        pip install -r requirements.txt
+        pip install pyinstaller
+
+    - name: Build executable
+      run: |
+        if [[ "$RUNNER_OS" == "Windows" ]]; then
+          pyinstaller --onefile main.py
+        else
+          pyinstaller --onefile main.py
+        fi
+      shell: bash
+
+    - name: Upload artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: my-python-app-${{ matrix.os }}
+        path: |
+          dist/main.exe
+          dist/main
+        if-no-files-found: ignore
