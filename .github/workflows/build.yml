@@ -1,9 +1,8 @@
-name: Application Passses Build
+name: Build Release
 
 on:
-  push:
-    branches: [ main ]
-  pull_request:
+  release:
+    types: [created]
 
 jobs:
   build:
@@ -31,17 +30,17 @@ jobs:
     - name: Build executable
       run: |
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-          pyinstaller --onefile src\\main.py
+          pyinstaller main.spec
         else
-          pyinstaller --onefile src/main.py
+          pyinstaller main.spec
         fi
       shell: bash
 
-    - name: Upload artifact
-      uses: actions/upload-artifact@v4
+    - name: Upload to GitHub Release
+      uses: softprops/action-gh-release@v1
       with:
-        name: my-python-app-${{ matrix.os }}
-        path: |
+        files: |
           dist/main.exe
           dist/main
-        if-no-files-found: ignore
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
