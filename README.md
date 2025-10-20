@@ -37,8 +37,8 @@ It uses **COLMAP** for structure-from-motion under the hood and exports results 
 ---
 
 ## Known Issues & Future Ideas
-
 - The **orientation and scale** of the track can sometimes be off. Manual adjustment may be required.  
+- The **logging system isnt printing everything**, its highly recommended to run this from a terminal for now.
 - **GLOMAP support** would be a nice addition, though Python bindings may not exist yet.  
 - Contributions, bug reports, and algorithm suggestions are welcome!
 

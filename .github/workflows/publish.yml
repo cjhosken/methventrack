@@ -30,7 +30,7 @@ jobs:
     - name: Build executable
       run: |
         if [[ "$RUNNER_OS" == "Windows" ]]; then
-          pyinstaller main.spec
+          python -m PyInstaller main.spec
         else
           pyinstaller main.spec
         fi
