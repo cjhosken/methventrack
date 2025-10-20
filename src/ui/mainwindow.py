@@ -1,12 +1,13 @@
 from PySide6.QtWidgets import (
     QHBoxLayout, QLabel, QPushButton, QVBoxLayout, QWidget,
-    QFileDialog, QMessageBox, QTextEdit, QComboBox
+    QFileDialog, QMessageBox, QTextEdit, QComboBox, QStackedWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QMenuBar
 )
+from PySide6.QtGui import QAction
+from PySide6.QtCore import QObject, Signal
+
 import os
 import shutil
 import pycolmap
-
-from ui.glviewport import GLViewport
 
 from tracking import (
     generate_frames, extract_features,
@@ -17,56 +18,123 @@ class MainWindow(QWidget):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Methven Track")
-        self.resize(1200, 700)
+        self.resize(400, 700)
 
         self.project_dir = None
         self.source_video = None
+        
+        # --- Menu Bar ---
+        self.menu_bar = QMenuBar(self)
+        
+        new_action = QAction("🆕 New Project", self)
+        new_action.triggered.connect(self.create_project)
+        self.menu_bar.addAction(new_action)
+
+        open_action = QAction("📂 Open Project", self)
+        open_action.triggered.connect(self.open_project)
+        self.menu_bar.addAction(open_action)
 
         # --- Main layout ---
-        self.main_layout = QHBoxLayout(self)
-        self.sidebar = QVBoxLayout()
-        self.main_layout.addLayout(self.sidebar, 0)
-        self.viewport = GLViewport(self)
-        self.main_layout.addWidget(self.viewport, 1)
+        main_v_layout = QVBoxLayout(self)
+        main_v_layout.setContentsMargins(10, 10, 10, 10)
+        main_v_layout.addWidget(self.menu_bar)  # top menu bar
+
+        # Horizontal layout for sidebar + viewport
+        self.main_layout = QVBoxLayout()
+        main_v_layout.addLayout(self.main_layout, 1)
 
         # --- Sidebar UI ---
-        self.sidebar.addWidget(QLabel("<b>Project Controls</b>"))
-        self.new_btn = QPushButton("🆕 New Project")
-        self.new_btn.clicked.connect(self.create_project)
-        self.open_btn = QPushButton("📂 Open Project")
-        self.open_btn.clicked.connect(self.open_project)
-        self.sidebar.addWidget(self.new_btn)
-        self.sidebar.addWidget(self.open_btn)
+        self.main_layout.addWidget(QLabel("<b>Tracking</b>"))
+        
+        sift_settings_widget = QWidget()
+        sift_settings_layout = QFormLayout()
+        
+        self.device_selector = QComboBox()
+        self.device_selector.addItems(["auto", "gpu", "cpu"])
+        sift_settings_layout.addRow("Compute Device:", self.device_selector)
         
 
-        self.sidebar.addWidget(QLabel("<b>Tracking</b>"))
+        
+        self.camera_model_selector = QComboBox()
+        self.camera_model_selector.addItems(["SIMPLE_RADIAL", "FISHEYE"])
+        sift_settings_layout.addRow("Camera Model:", self.camera_model_selector)
+        
+        self.max_sift_ratio_spin = QDoubleSpinBox()
+        self.max_sift_ratio_spin.setValue(0.8)
+        self.max_sift_distance_spin = QDoubleSpinBox()
+        self.max_sift_distance_spin.setValue(0.7)
+        sift_settings_layout.addRow("Max Sift ratio:", self.max_sift_ratio_spin)
+        sift_settings_layout.addRow("Max Sift distance:", self.max_sift_distance_spin)
+        
+        sift_settings_widget.setLayout(sift_settings_layout)
+        self.main_layout.addWidget(sift_settings_widget)
+
         self.match_type_selector = QComboBox()
         self.match_type_selector.addItems(["exhaustive", "sequential", "spatial"])
-        self.sidebar.addWidget(QLabel("Feature Matching Type:"))
-        self.sidebar.addWidget(self.match_type_selector)
+        self.main_layout.addWidget(QLabel("Feature Matching Type:"))
+        self.main_layout.addWidget(self.match_type_selector)
+        
+        self.match_options_stack = QStackedWidget()
+        self.main_layout.addWidget(self.match_options_stack)
+
+        # Exhaustive options
+        exhaustive_widget = QWidget()
+        exhaustive_layout = QFormLayout()
+        self.block_size_spin = QSpinBox()
+        self.block_size_spin.setValue(50)
+        exhaustive_layout.addRow("Block size:", self.block_size_spin)
+        exhaustive_widget.setLayout(exhaustive_layout)
+
+        # Sequential options
+        sequential_widget = QWidget()
+        sequential_layout = QFormLayout()
+        self.overlap_spin = QSpinBox()
+        self.overlap_spin.setValue(15)
+        sequential_layout.addRow("Overlap:", self.overlap_spin)
+        sequential_widget.setLayout(sequential_layout)
+
+        # Spatial options
+        spatial_widget = QWidget()
+        spatial_layout = QFormLayout()
+        self.max_neighbors_spin = QSpinBox()
+        self.max_neighbors_spin.setValue(50)
+        self.max_distance_spin = QDoubleSpinBox()
+        self.max_distance_spin.setValue(100.0)
+        spatial_layout.addRow("Max neighbors:", self.max_neighbors_spin)
+        spatial_layout.addRow("Max distance:", self.max_distance_spin)
+        spatial_widget.setLayout(spatial_layout)
+
+        self.match_options_stack.addWidget(exhaustive_widget)
+        self.match_options_stack.addWidget(sequential_widget)
+        self.match_options_stack.addWidget(spatial_widget)
+
+        # Switch on match type change
+        self.match_type_selector.currentIndexChanged.connect(
+            lambda i: self.match_options_stack.setCurrentIndex(i)
+        )
 
         self.track_btn = QPushButton("▶ Run Tracking")
         self.track_btn.setEnabled(False)
         self.track_btn.clicked.connect(self.handle_tracking_action)
-        self.sidebar.addWidget(self.track_btn)
+        self.main_layout.addWidget(self.track_btn)
 
         # Reconstruction selector
-        self.sidebar.addWidget(QLabel("<b>Reconstructions</b>"))
+        self.main_layout.addWidget(QLabel("<b>Reconstructions</b>"))
         self.recon_selector = QComboBox()
         self.recon_selector.setEnabled(False)
-        self.recon_selector.currentIndexChanged.connect(self.on_recon_selection_changed)
-        self.sidebar.addWidget(self.recon_selector)
+        self.main_layout.addWidget(self.recon_selector)
 
         self.export_btn = QPushButton("💾 Export USD")
         self.export_btn.setVisible(False)
         self.export_btn.clicked.connect(self.export_usd)
-        self.sidebar.addWidget(self.export_btn)
+        self.main_layout.addWidget(self.export_btn)
 
-        self.sidebar.addWidget(QLabel("<b>Log Output</b>"))
+        self.main_layout.addWidget(QLabel("<b>Log Output</b>"))
         self.log_box = QTextEdit()
         self.log_box.setReadOnly(True)
         self.log_box.setPlaceholderText("Tracking logs will appear here…")
-        self.sidebar.addWidget(self.log_box, 1)
+
+        self.main_layout.addWidget(self.log_box, 1)
 
     # ----------------------------------------------------
     # Utility
@@ -123,14 +191,10 @@ class MainWindow(QWidget):
         if not video_path:
             return
 
-        project_dir = QFileDialog.getExistingDirectory(
+        project_path = QFileDialog.getExistingDirectory(
             self, "Select Folder to Create Project In", os.path.expanduser("~")
         )
-        if not project_dir:
-            return
 
-        project_name = os.path.splitext(os.path.basename(video_path))[0]
-        project_path = os.path.join(project_dir, project_name)
         os.makedirs(project_path, exist_ok=True)
 
         dest_video = os.path.join(project_path, "source.mp4")
@@ -184,6 +248,7 @@ class MainWindow(QWidget):
     # ----------------------------------------------------
     # Tracking pipeline
     # ----------------------------------------------------
+    
     def run_tracking(self):
         if not self.project_dir:
             QMessageBox.warning(self, "No Project", "Please create or open a project first.")
@@ -201,20 +266,51 @@ class MainWindow(QWidget):
         ])
         recon_dir = os.path.join(recon_root, str(next_index))
         os.makedirs(recon_dir, exist_ok=True)
+        
+        device = {
+            "gpu": pycolmap.Device.cuda,
+            "cpu": pycolmap.Device.cpu
+        }.get(self.device_selector.currentText(), pycolmap.Device.auto)
 
         self.track_btn.setEnabled(False)
         self.log(f"=== Starting tracking pipeline (recon #{next_index}) ===")
+    
         try:
             self.log("[1/4] Extracting frames with ffmpeg…")
             generate_frames(source=video_path, dest_dir=frames_dir)
             self.log("✅ Frames generated successfully.")
 
             self.log("[2/4] Extracting features with COLMAP…")
-            extract_features(database, frames_dir)
+            extract_features(database, frames_dir, device, self.camera_model_selector.currentText())
             self.log("✅ Features extracted.")
 
             self.log("[3/4] Matching features…")
-            match_features(database)
+            
+            matching_type = self.match_type_selector.currentText()
+            
+            use_gpu = self.device_selector.currentText() == "gpu"
+            
+            sift_options = pycolmap.SiftOptions(
+                use_gpu=use_gpu,
+                max_ratio=self.max_sift_ratio_spin.value(),
+                max_distanec=self.max_sift_distance_spin.value()
+            )
+            
+            if matching_type == "exhaustive":
+                matching_options = pycolmap.ExhaustiveMatchingOptions(
+                    block_size=self.block_size_spin.value()
+                )
+            elif matching_type == "sequential":
+                matching_options = pycolmap.SequentialMatchingOptions(
+                    overlap = self.overlap_spin.value()
+                )
+            elif matching_type == "spatial":
+                matching_options = pycolmap.SpatialMatchingOptions(
+                    max_num_neighbors=self.max_neighbors_spin.value(),
+                    max_distance=self.max_distance_spin.value()
+                )
+            
+            match_features(database, matching_type, sift_options, matching_options, device)
             self.log("✅ Features matched.")
 
             self.log("[4/4] Running mapping (structure-from-motion)…")
@@ -262,25 +358,6 @@ class MainWindow(QWidget):
             self.track_btn.setText("▶ Run Tracking")
             self.export_btn.setVisible(False)
 
-
-    def on_recon_selection_changed(self, index):
-        """Load the selected reconstruction into the viewport."""
-        if not self.project_dir:
-            return
-
-        recon_name = self.recon_selector.currentText()
-        if not recon_name:
-            return
-
-        recon_dir = os.path.join(self.project_dir, "reconstruction", recon_name)
-        if os.path.exists(recon_dir):
-            try:
-                recon = pycolmap.Reconstruction(recon_dir)
-                self.viewport.load_reconstruction(recon)
-                self.log(f"🖥 Loaded reconstruction #{recon_name} into viewport.")
-            except Exception as e:
-                self.log(f"❌ Failed to load reconstruction: {e}")
-
     # ----------------------------------------------------
     # Export
     # ----------------------------------------------------
@@ -293,16 +370,18 @@ class MainWindow(QWidget):
 
         selected_recon = self.recon_selector.currentText() or "0"
         recon_dir = os.path.join(self.project_dir, "reconstruction", selected_recon)
+        
+        recon_clean_name = selected_recon.replace('/', '_').replace('\\', '_')
 
         usd_path, _ = QFileDialog.getSaveFileName(
-            self, "Export to USD", os.path.join(export_dir, f"camera_track_{selected_recon.replace("/", "_")}.usda"),
+            self, "Export to USD", os.path.join(export_dir, f"camera_track_{recon_clean_name}.usda"),
             "USD Files (*.usd *.usda)"
         )
         if usd_path:
             try:
                 self.log(f"Exporting reconstruction #{selected_recon} to USD…")
                 recon = pycolmap.Reconstruction(recon_dir)
-                create_usd(recon, usd_path)
+                create_usd(self.project_dir, recon, usd_path)
                 self.log(f"✅ USD file exported to: {usd_path}")
                 QMessageBox.information(self, "Export Complete", f"USD file exported to:\n{usd_path}")
             except Exception as e:
