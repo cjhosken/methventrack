@@ -30,11 +30,7 @@ jobs:
 
     - name: Build executable
       run: |
-        if [[ "$RUNNER_OS" == "Windows" ]]; then
           python -m PyInstaller main.spec
-        else
-          pyinstaller main.spec
-        fi
       shell: bash
 
     - name: Upload artifact
