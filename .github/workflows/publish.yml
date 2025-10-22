@@ -36,7 +36,7 @@ jobs:
       uses: softprops/action-gh-release@v1
       with:
         files: |
-          dist/main.exe
-          dist/main
+          dist/MethvenTrack.exe
+          dist/MethvenTrack
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

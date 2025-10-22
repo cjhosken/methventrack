@@ -1,16 +1,3 @@
-<h1 align="center">Methven Track</h1>
-
-<div align="center">
-  <img src="https://img.shields.io/badge/Python-3776AB?logo=python&logoColor=fff" alt="Python"/>
-  <img src="https://img.shields.io/badge/USD-16B7FB" alt="USD"/>
-  <br/>
-  <a href="https://github.com/cjhosken/methventrack/actions/workflows/build.yml">
-    <img src="https://github.com/cjhosken/methventrack/actions/workflows/build.yml/badge.svg?branch=main" alt="App Build"/>
-  </a>
-</div>
-
----
-
 <h1 align="center">🎥 Methven Track</h1>
 
 <div align="center">
