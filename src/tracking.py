@@ -6,6 +6,66 @@ from pathlib import Path
 import subprocess
 import os
 
+from PySide6.QtCore import QObject, QThread, Signal
+
+class TrackingWorker(QObject):
+    finished = Signal()
+    log_message = Signal(str)
+    error = Signal(str)
+
+    def __init__(self, project_dir, device, camera_model, match_type, sift_ratio, sift_distance, match_options):
+        super().__init__()
+        self.project_dir = project_dir
+        self.device = device
+        self.camera_model = camera_model
+        self.match_type = match_type
+        self.sift_ratio = sift_ratio
+        self.sift_distance = sift_distance
+        self.match_options = match_options
+
+    def run(self):
+        try:
+            import os, pycolmap
+            
+            video_path = os.path.join(self.project_dir, "source.mp4")
+            frames_dir = os.path.join(self.project_dir, "frames")
+            database = os.path.join(self.project_dir, "database.db")
+
+            recon_root = os.path.join(self.project_dir, "reconstruction")
+            next_index = len([d for d in os.listdir(recon_root) if os.path.isdir(os.path.join(recon_root, d))])
+            recon_dir = os.path.join(recon_root, str(next_index))
+            os.makedirs(recon_dir, exist_ok=True)
+
+            self.log_message.emit("[1/4] Extracting frames…")
+            generate_frames(video_path, frames_dir)
+            self.log_message.emit("✅ Frames generated.")
+
+            self.log_message.emit("[2/4] Extracting features…")
+            extract_features(database, frames_dir, self.device, self.camera_model)
+            self.log_message.emit("✅ Features extracted.")
+
+            self.log_message.emit("[3/4] Matching features…")
+            use_gpu = (self.device == pycolmap.Device.cuda)
+            sift_options = pycolmap.SiftMatchingOptions(
+                use_gpu=use_gpu,
+                max_ratio=self.sift_ratio,
+                max_distance=self.sift_distance
+            )
+
+            match_features(database, self.match_type, sift_options, self.match_options, self.device)
+            self.log_message.emit("✅ Features matched.")
+
+            self.log_message.emit("[4/4] Running mapping…")
+            map_reconstruction(database, frames_dir, recon_dir)
+            self.log_message.emit("✅ Reconstruction complete.")
+            self.log_message.emit("=== Tracking completed successfully ===")
+
+        except Exception as e:
+            self.error.emit(str(e))
+        finally:
+            self.finished.emit()
+
+
 def generate_frames(source, dest_dir, dest_name="frame_%06d.jpg", fps=24):
     """Generate frames using packaged ffmpeg binary."""
     dest_dir = Path(dest_dir)

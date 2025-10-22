@@ -1,53 +1,29 @@
 # -*- mode: python ; coding: utf-8 -*-
-
-import glob
 import os
 import site
+import pxr
 from imageio_ffmpeg import get_ffmpeg_exe
 
 block_cipher = None
 
-# ----------------------------
-# 1️⃣ PXr hidden imports & binaries
-# ----------------------------
-hiddenimports = [
-    'pxr.Tf._tf',
-    'pxr.Sdf._sdf',
-    'pxr.Usd._usd',
-    'pxr.UsdGeom._usdGeom',
-    'pxr.Gf._gf',
-    'pxr.Vt._vt',
-    'pxr.UsdUtils._usdUtils',
-    'pxr.UsdShade._usdShade',
-]
-
-# Locate pxr site-packages path
-pxr_path = os.path.join(site.getsitepackages()[0], "pxr")
-datas = []
-
-# Include all .pyd files
-for f in glob.glob(os.path.join(pxr_path, "*.pyd")):
-    datas.append((f, "pxr"))
-
-# Include any dlls if on Windows
-for f in glob.glob(os.path.join(pxr_path, "*.dll")):
-    datas.append((f, "pxr"))
-
-# ----------------------------
-# 2️⃣ Include ffmpeg binary from imageio-ffmpeg
-# ----------------------------
+# 1️⃣ Include ffmpeg binary
 ffmpeg_bin = get_ffmpeg_exe()
-datas.append((ffmpeg_bin, "imageio_ffmpeg"))
+datas = [(ffmpeg_bin, "imageio_ffmpeg")]
 
-# ----------------------------
-# 3️⃣ Analysis
-# ----------------------------
+# 2️⃣ Include entire USD 'pxr' package intact
+pxr_path = os.path.dirname(pxr.__file__)
+datas.append((pxr_path, "pxr"))
+
+# 3️⃣ Build
 a = Analysis(
     ['src/main.py'],
     pathex=[],
     binaries=[],
     datas=datas,
-    hiddenimports=hiddenimports + ['pycolmap', 'imageio_ffmpeg', 'PySide6'],
+    hiddenimports=[
+        'pycolmap', 'imageio_ffmpeg', 'PySide6',
+        'pxr.Usd', 'pxr.Sdf', 'pxr.Tf', 'pxr.Gf', 'pxr.Vt', 'pxr.Ar'
+    ],
     hookspath=[],
     runtime_hooks=[],
     excludes=[],
@@ -56,14 +32,8 @@ a = Analysis(
     cipher=block_cipher,
 )
 
-# ----------------------------
-# 4️⃣ PYZ
-# ----------------------------
 pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
 
-# ----------------------------
-# 5️⃣ EXE
-# ----------------------------
 exe = EXE(
     pyz,
     a.scripts,
@@ -73,7 +43,7 @@ exe = EXE(
     name='MethvenTrack',
     debug=False,
     strip=False,
-    upx=True,
-    console=False,  # GUI app
-    icon='icon.ico',  # replace with your icon if you have one
+    upx=False,  # ⛔ Disable UPX; it can break USD .pyds
+    console=True,
+    icon='icon.ico',
 )

@@ -3,16 +3,13 @@ from PySide6.QtWidgets import (
     QFileDialog, QMessageBox, QTextEdit, QComboBox, QStackedWidget, QFormLayout, QSpinBox, QDoubleSpinBox, QMenuBar
 )
 from PySide6.QtGui import QAction
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, Signal, QThread, QThreadPool
 
 import os
 import shutil
 import pycolmap
 
-from tracking import (
-    generate_frames, extract_features,
-    match_features, map_reconstruction, create_usd
-)
+from tracking import create_usd, TrackingWorker
 
 class MainWindow(QWidget):
     def __init__(self):
@@ -155,7 +152,6 @@ class MainWindow(QWidget):
         self.update_reconstruction_list()
         if self.recon_selector.count() > 0:
             self.recon_selector.setCurrentIndex(0)
-            self.on_recon_selection_changed(0)
 
     def update_reconstruction_list(self):
         """Refresh the reconstruction dropdown."""
@@ -254,79 +250,51 @@ class MainWindow(QWidget):
             QMessageBox.warning(self, "No Project", "Please create or open a project first.")
             return
 
-        video_path = os.path.join(self.project_dir, "source.mp4")
-        frames_dir = os.path.join(self.project_dir, "frames")
-        database = os.path.join(self.project_dir, "database.db")
+        self.track_btn.setEnabled(False)
+        self.log("🚀 Starting tracking in background thread…")
 
-        # Create new reconstruction subfolder
-        recon_root = os.path.join(self.project_dir, "reconstruction")
-        next_index = len([
-            d for d in os.listdir(recon_root)
-            if os.path.isdir(os.path.join(recon_root, d))
-        ])
-        recon_dir = os.path.join(recon_root, str(next_index))
-        os.makedirs(recon_dir, exist_ok=True)
-        
         device = {
             "gpu": pycolmap.Device.cuda,
             "cpu": pycolmap.Device.cpu
         }.get(self.device_selector.currentText(), pycolmap.Device.auto)
 
-        self.track_btn.setEnabled(False)
-        self.log(f"=== Starting tracking pipeline (recon #{next_index}) ===")
-    
-        try:
-            self.log("[1/4] Extracting frames with ffmpeg…")
-            generate_frames(source=video_path, dest_dir=frames_dir)
-            self.log("✅ Frames generated successfully.")
-
-            self.log("[2/4] Extracting features with COLMAP…")
-            extract_features(database, frames_dir, device, self.camera_model_selector.currentText())
-            self.log("✅ Features extracted.")
-
-            self.log("[3/4] Matching features…")
-            
-            matching_type = self.match_type_selector.currentText()
-            
-            use_gpu = self.device_selector.currentText() == "gpu"
-            
-            sift_options = pycolmap.SiftMatchingOptions(
-                use_gpu=use_gpu,
-                max_ratio=self.max_sift_ratio_spin.value(),
-                max_distance=self.max_sift_distance_spin.value()
+        # Prepare matching options based on current UI
+        match_type = self.match_type_selector.currentText()
+        if match_type == "exhaustive":
+            match_options = pycolmap.ExhaustiveMatchingOptions(block_size=self.block_size_spin.value())
+        elif match_type == "sequential":
+            match_options = pycolmap.SequentialMatchingOptions(overlap=self.overlap_spin.value())
+        else:
+            match_options = pycolmap.SpatialMatchingOptions(
+                max_num_neighbors=self.max_neighbors_spin.value(),
+                max_distance=self.max_distance_spin.value()
             )
-            
-            if matching_type == "exhaustive":
-                matching_options = pycolmap.ExhaustiveMatchingOptions(
-                    block_size=self.block_size_spin.value()
-                )
-            elif matching_type == "sequential":
-                matching_options = pycolmap.SequentialMatchingOptions(
-                    overlap = self.overlap_spin.value()
-                )
-            elif matching_type == "spatial":
-                matching_options = pycolmap.SpatialMatchingOptions(
-                    max_num_neighbors=self.max_neighbors_spin.value(),
-                    max_distance=self.max_distance_spin.value()
-                )
-            
-            match_features(database, matching_type, sift_options, matching_options, device)
-            self.log("✅ Features matched.")
 
-            self.log("[4/4] Running mapping (structure-from-motion)…")
-            map_reconstruction(database, frames_dir, recon_dir)
-            self.log("✅ Reconstruction complete.")
-            self.log("=== Tracking completed successfully ===")
+        # Create thread and worker
+        self.thread = QThread()
+        self.worker = TrackingWorker(
+            project_dir=self.project_dir,
+            device=device,
+            camera_model=self.camera_model_selector.currentText(),
+            match_type=match_type,
+            sift_ratio=self.max_sift_ratio_spin.value(),
+            sift_distance=self.max_sift_distance_spin.value(),
+            match_options=match_options
+        )
+        self.worker.moveToThread(self.thread)
 
-            self.export_btn.setVisible(True)
-            self.update_reconstruction_list()
+        # Connect signals
+        self.thread.started.connect(self.worker.run)
+        self.worker.finished.connect(self.thread.quit)
+        self.worker.finished.connect(self.worker.deleteLater)
+        self.thread.finished.connect(self.thread.deleteLater)
+        self.worker.log_message.connect(self.log)
+        self.worker.error.connect(lambda e: QMessageBox.critical(self, "Tracking Error", e))
+        self.worker.finished.connect(lambda: self.track_btn.setEnabled(True))
+        self.worker.finished.connect(self.update_reconstruction_list)
 
-        except Exception as e:
-            self.log(f"❌ Error: {e}")
-            QMessageBox.critical(self, "Tracking Failed", f"An error occurred:\n{str(e)}")
-        finally:
-            self.track_btn.setEnabled(True)
-
+        # Start
+        self.thread.start()
 
     def update_reconstruction_list(self):
         """Refresh the reconstruction dropdown by finding folders containing COLMAP .bin files."""
