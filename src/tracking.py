@@ -33,7 +33,7 @@ def extract_features(db_path, frames_path, device, camera_model):
         camera_model=camera_model
     )
 
-def match_features(db_path, match_type, device, sift_options, matching_options):
+def match_features(db_path, match_type, sift_options, matching_options, device):
     if match_type == "exhaustive":
         pycolmap.match_exhaustive(
             database_path=db_path,
@@ -82,7 +82,7 @@ def create_usd(project_dir, reconstruction: "pycolmap.Reconstruction", export_pa
         # COLMAP 3D coordinates
         points.append(pt.xyz)
         # Optional: RGB colors (0-255) -> (0-1)
-        if pt.rgb:
+        if hasattr(pt, 'rgb') and pt.rgb:
             colors.append([c / 255.0 for c in pt.rgb])
         else:
             colors.append([1.0, 1.0, 1.0])  # default white

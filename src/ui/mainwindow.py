@@ -290,10 +290,10 @@ class MainWindow(QWidget):
             
             use_gpu = self.device_selector.currentText() == "gpu"
             
-            sift_options = pycolmap.SiftOptions(
+            sift_options = pycolmap.SiftMatchingOptions(
                 use_gpu=use_gpu,
                 max_ratio=self.max_sift_ratio_spin.value(),
-                max_distanec=self.max_sift_distance_spin.value()
+                max_distance=self.max_sift_distance_spin.value()
             )
             
             if matching_type == "exhaustive":
