@@ -14,6 +14,8 @@ datas = [(ffmpeg_bin, "imageio_ffmpeg")]
 pxr_path = os.path.dirname(pxr.__file__)
 datas.append((pxr_path, "pxr"))
 
+datas.append(('icon.ico', '.'))  # 👈 Include icon file in root of dist folder
+
 # 3️⃣ Build
 a = Analysis(
     ['src/main.py'],
