@@ -20,28 +20,27 @@ class MainWindow(QWidget):
         self.project_dir = None
         self.source_video = None
         
-        # --- Menu Bar ---
-        self.menu_bar = QMenuBar(self)
         
-        new_action = QAction("🆕 New Project", self)
-        new_action.triggered.connect(self.create_project)
-        self.menu_bar.addAction(new_action)
+        top_bar = QHBoxLayout()
+        
+        new_button = QPushButton("🆕 New Project")
+        new_button.clicked.connect(self.create_project)
 
-        open_action = QAction("📂 Open Project", self)
-        open_action.triggered.connect(self.open_project)
-        self.menu_bar.addAction(open_action)
+        open_button = QPushButton("📂 Open Project")
+        open_button.clicked.connect(self.open_project)
 
-        # --- Main layout ---
+        top_bar.addWidget(new_button)
+        top_bar.addWidget(open_button)
+        top_bar.addStretch()  # push buttons left
+
         main_v_layout = QVBoxLayout(self)
         main_v_layout.setContentsMargins(10, 10, 10, 10)
-        main_v_layout.addWidget(self.menu_bar)  # top menu bar
 
-        # Horizontal layout for sidebar + viewport
+        # add the custom "menu" area
+        main_v_layout.addLayout(top_bar)
+
         self.main_layout = QVBoxLayout()
         main_v_layout.addLayout(self.main_layout, 1)
-
-        # --- Sidebar UI ---
-        self.main_layout.addWidget(QLabel("<b>Tracking</b>"))
         
         sift_settings_widget = QWidget()
         sift_settings_layout = QFormLayout()
