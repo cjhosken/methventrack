@@ -13,7 +13,7 @@ class TrackingWorker(QObject):
     log_message = Signal(str)
     error = Signal(str)
 
-    def __init__(self, project_dir, device, camera_model, match_type, sift_ratio, sift_distance, match_options):
+    def __init__(self, project_dir, device, camera_model, match_type, sift_ratio, sift_distance, pair_options):
         super().__init__()
         self.project_dir = project_dir
         self.device = device
@@ -21,7 +21,7 @@ class TrackingWorker(QObject):
         self.match_type = match_type
         self.sift_ratio = sift_ratio
         self.sift_distance = sift_distance
-        self.match_options = match_options
+        self.pair_options = pair_options
 
     def run(self):
         try:
@@ -43,16 +43,19 @@ class TrackingWorker(QObject):
             self.log_message.emit("[2/4] Extracting features…")
             extract_features(database, frames_dir, self.device, self.camera_model)
             self.log_message.emit("✅ Features extracted.")
-
+            
             self.log_message.emit("[3/4] Matching features…")
-            use_gpu = (self.device == pycolmap.Device.cuda)
             sift_options = pycolmap.SiftMatchingOptions(
-                use_gpu=use_gpu,
                 max_ratio=self.sift_ratio,
                 max_distance=self.sift_distance
             )
 
-            match_features(database, self.match_type, sift_options, self.match_options, self.device)
+            matching_options = pycolmap.FeatureMatchingOptions(
+                sift=sift_options
+            )
+            
+
+            match_features(database, self.match_type, matching_options, self.pair_options, self.device)
             self.log_message.emit("✅ Features matched.")
 
             self.log_message.emit("[4/4] Running mapping…")
@@ -93,26 +96,26 @@ def extract_features(db_path, frames_path, device, camera_model):
         camera_model=camera_model
     )
 
-def match_features(db_path, match_type, sift_options, matching_options, device):
+def match_features(db_path, match_type, matching_options, pairing_options, device):
     if match_type == "exhaustive":
         pycolmap.match_exhaustive(
             database_path=db_path,
-            sift_options=sift_options,
             matching_options=matching_options,
+            pairing_options=pairing_options,
             device=device
         )
     elif match_type == "sequential":
         pycolmap.match_sequential(
             database_path=db_path,
-            sift_options=sift_options,
             matching_options=matching_options,
+            pairing_options=pairing_options,
             device=device
         )
     elif match_type == "spatial":
         pycolmap.match_spatial(
             database_path=db_path,
-            sift_options=sift_options,
             matching_options=matching_options,
+            pairing_options=pairing_options,
             device=device
         )
 

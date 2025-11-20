@@ -1,6 +1,6 @@
-pycolmap
-usd-core
-numpy
-PySide6
-PyOpenGL
-imageio-ffmpeg
+pycolmap==3.13.0
+usd-core==25.5.1
+numpy==2.2.6
+PySide6==6.9.0
+PyOpenGL==3.1.9
+imageio-ffmpeg==0.6.0

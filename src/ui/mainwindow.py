@@ -44,13 +44,7 @@ class MainWindow(QWidget):
         
         sift_settings_widget = QWidget()
         sift_settings_layout = QFormLayout()
-        
-        self.device_selector = QComboBox()
-        self.device_selector.addItems(["auto", "gpu", "cpu"])
-        sift_settings_layout.addRow("Compute Device:", self.device_selector)
-        
-
-        
+                
         self.camera_model_selector = QComboBox()
         self.camera_model_selector.addItems(["SIMPLE_RADIAL", "FISHEYE"])
         sift_settings_layout.addRow("Camera Model:", self.camera_model_selector)
@@ -70,8 +64,8 @@ class MainWindow(QWidget):
         self.main_layout.addWidget(QLabel("Feature Matching Type:"))
         self.main_layout.addWidget(self.match_type_selector)
         
-        self.match_options_stack = QStackedWidget()
-        self.main_layout.addWidget(self.match_options_stack)
+        self.pair_options_stack = QStackedWidget()
+        self.main_layout.addWidget(self.pair_options_stack)
 
         # Exhaustive options
         exhaustive_widget = QWidget()
@@ -100,13 +94,13 @@ class MainWindow(QWidget):
         spatial_layout.addRow("Max distance:", self.max_distance_spin)
         spatial_widget.setLayout(spatial_layout)
 
-        self.match_options_stack.addWidget(exhaustive_widget)
-        self.match_options_stack.addWidget(sequential_widget)
-        self.match_options_stack.addWidget(spatial_widget)
+        self.pair_options_stack.addWidget(exhaustive_widget)
+        self.pair_options_stack.addWidget(sequential_widget)
+        self.pair_options_stack.addWidget(spatial_widget)
 
         # Switch on match type change
         self.match_type_selector.currentIndexChanged.connect(
-            lambda i: self.match_options_stack.setCurrentIndex(i)
+            lambda i: self.pair_options_stack.setCurrentIndex(i)
         )
 
         self.track_btn = QPushButton("▶ Run Tracking")
@@ -252,19 +246,14 @@ class MainWindow(QWidget):
         self.track_btn.setEnabled(False)
         self.log("🚀 Starting tracking in background thread…")
 
-        device = {
-            "gpu": pycolmap.Device.cuda,
-            "cpu": pycolmap.Device.cpu
-        }.get(self.device_selector.currentText(), pycolmap.Device.auto)
-
         # Prepare matching options based on current UI
         match_type = self.match_type_selector.currentText()
         if match_type == "exhaustive":
-            match_options = pycolmap.ExhaustiveMatchingOptions(block_size=self.block_size_spin.value())
+            pair_options = pycolmap.ExhaustivePairingOptions(block_size=self.block_size_spin.value())
         elif match_type == "sequential":
-            match_options = pycolmap.SequentialMatchingOptions(overlap=self.overlap_spin.value())
+            pair_options = pycolmap.SequentialPairingOptions(overlap=self.overlap_spin.value())
         else:
-            match_options = pycolmap.SpatialMatchingOptions(
+            pair_options = pycolmap.SpatialPairingOptions(
                 max_num_neighbors=self.max_neighbors_spin.value(),
                 max_distance=self.max_distance_spin.value()
             )
@@ -273,12 +262,11 @@ class MainWindow(QWidget):
         self.thread = QThread()
         self.worker = TrackingWorker(
             project_dir=self.project_dir,
-            device=device,
             camera_model=self.camera_model_selector.currentText(),
             match_type=match_type,
             sift_ratio=self.max_sift_ratio_spin.value(),
             sift_distance=self.max_sift_distance_spin.value(),
-            match_options=match_options
+            pair_options=pair_options
         )
         self.worker.moveToThread(self.thread)
 
