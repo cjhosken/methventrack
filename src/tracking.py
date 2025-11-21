@@ -13,10 +13,9 @@ class TrackingWorker(QObject):
     log_message = Signal(str)
     error = Signal(str)
 
-    def __init__(self, project_dir, device, camera_model, match_type, sift_ratio, sift_distance, pair_options):
+    def __init__(self, project_dir, camera_model, match_type, sift_ratio, sift_distance, pair_options):
         super().__init__()
         self.project_dir = project_dir
-        self.device = device
         self.camera_model = camera_model
         self.match_type = match_type
         self.sift_ratio = sift_ratio
@@ -41,7 +40,7 @@ class TrackingWorker(QObject):
             self.log_message.emit("✅ Frames generated.")
 
             self.log_message.emit("[2/4] Extracting features…")
-            extract_features(database, frames_dir, self.device, self.camera_model)
+            extract_features(database, frames_dir, self.camera_model)
             self.log_message.emit("✅ Features extracted.")
             
             self.log_message.emit("[3/4] Matching features…")
@@ -55,7 +54,7 @@ class TrackingWorker(QObject):
             )
             
 
-            match_features(database, self.match_type, matching_options, self.pair_options, self.device)
+            match_features(database, self.match_type, matching_options, self.pair_options)
             self.log_message.emit("✅ Features matched.")
 
             self.log_message.emit("[4/4] Running mapping…")
@@ -86,37 +85,33 @@ def generate_frames(source, dest_dir, dest_name="frame_%06d.jpg", fps=24):
     subprocess.run(cmd, check=True)
 
 
-def extract_features(db_path, frames_path, device, camera_model):    
+def extract_features(db_path, frames_path, camera_model):    
     # set image reader to single camera
     pycolmap.extract_features(
         database_path=db_path,
         image_path=frames_path,
-        device=device,
         camera_mode=pycolmap.CameraMode.SINGLE,
         camera_model=camera_model
     )
 
-def match_features(db_path, match_type, matching_options, pairing_options, device):
+def match_features(db_path, match_type, matching_options, pairing_options):
     if match_type == "exhaustive":
         pycolmap.match_exhaustive(
             database_path=db_path,
             matching_options=matching_options,
-            pairing_options=pairing_options,
-            device=device
+            pairing_options=pairing_options
         )
     elif match_type == "sequential":
         pycolmap.match_sequential(
             database_path=db_path,
             matching_options=matching_options,
-            pairing_options=pairing_options,
-            device=device
+            pairing_options=pairing_options
         )
     elif match_type == "spatial":
         pycolmap.match_spatial(
             database_path=db_path,
             matching_options=matching_options,
-            pairing_options=pairing_options,
-            device=device
+            pairing_options=pairing_options
         )
 
 def map_reconstruction(db_path, frames_path, output_path):
